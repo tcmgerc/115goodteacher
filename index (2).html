@@ -1,0 +1,1355 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>優良教師暨模範教師評選系統</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --ink:#211a12;
+    --paper:#faf8f3;
+    --line:#c9bd9e;
+    --brand:#7a3b2e;
+    --brand-dark:#5c2c22;
+    --gold:#8a5f1e;
+    --good:#2f5b3c;
+  }
+  *{box-sizing:border-box;}
+  /* 放大整體字級（約等於 19px 基準），方便長輩閱讀；下方多數尺寸都用 rem，會跟著一起放大 */
+  html{font-size:118%;}
+  body{
+    font-family:'Noto Sans TC',system-ui,sans-serif;background:var(--paper);color:var(--ink);
+    line-height:1.75;
+    -webkit-text-size-adjust:100%;
+  }
+  h1,h2,h3{line-height:1.4;}
+  .brandbar{background:linear-gradient(135deg,var(--brand) 0%,var(--brand-dark) 100%);}
+  .tab-btn{
+    transition:all .15s ease;border-bottom:4px solid transparent;
+    min-height:3.2rem;font-weight:600;
+  }
+  .tab-btn.active{border-bottom-color:var(--gold);background:rgba(255,255,255,.14);color:#fff;font-weight:800;}
+  .card{background:#fff;border:1px solid var(--line);border-radius:16px;box-shadow:0 1px 3px rgba(0,0,0,.05);}
+  .field-label{font-size:1rem;color:#4a4433;font-weight:700;margin-bottom:.35rem;display:block;}
+  .field-hint{font-size:.92rem;color:#6b6355;margin-top:.2rem;}
+  input[type=number], input[type=text], textarea, select{
+    border:1.5px solid var(--line);border-radius:10px;padding:.75rem .9rem;width:100%;
+    background:#fffdf9;font-size:1.05rem;min-height:3.1rem;color:var(--ink);
+  }
+  textarea{min-height:4.5rem;line-height:1.6;}
+  input:focus, textarea:focus, select:focus{outline:3px solid var(--gold);outline-offset:1px;border-color:var(--gold);}
+  input[type=radio], input[type=checkbox]{
+    width:1.4rem;height:1.4rem;accent-color:var(--brand);vertical-align:middle;
+  }
+  label{cursor:pointer;}
+  button{cursor:pointer;font-size:1.02rem;min-height:3.1rem;border-radius:10px;font-weight:700;}
+  button:active{transform:translateY(1px);}
+  .badge{display:inline-block;border-radius:999px;padding:.3rem .9rem;font-size:.92rem;font-weight:800;}
+  .badge-gold{background:#fbead0;color:#7a5216;border:1px solid #eccf98;}
+  .badge-good{background:#e5efe6;color:var(--good);border:1px solid #bcd9c1;}
+  .badge-muted{background:#efece4;color:#5c5646;border:1px solid var(--line);}
+  table.data th{position:sticky;top:0;background:#fff6e8;font-size:1rem;padding-top:.75rem;padding-bottom:.75rem;}
+  table.data td{padding-top:.65rem;padding-bottom:.65rem;font-size:1.02rem;}
+  ::-webkit-scrollbar{height:10px;width:10px;}
+  ::-webkit-scrollbar-thumb{background:var(--line);border-radius:8px;}
+  .section-num{
+    display:inline-flex;align-items:center;justify-content:center;
+    width:2rem;height:2rem;border-radius:999px;background:var(--brand);color:#fff;
+    font-size:1rem;font-weight:800;margin-right:.5rem;flex-shrink:0;
+  }
+  .hidden{display:none !important;}
+  a, .link-btn{text-underline-offset:3px;}
+
+  /* ============ 手機版：資料表格改成一列一張卡片，不用左右滑動 ============ */
+  @media (max-width:760px){
+    table.data thead{display:none;}
+    table.data, table.data tbody, table.data tr, table.data td{display:block;width:100%;}
+    table.data{border-collapse:separate;}
+    table.data tr{
+      border:1.5px solid var(--line);border-radius:12px;margin-bottom:.85rem;padding:.5rem .75rem;background:#fffdf9;
+    }
+    table.data td{
+      display:flex;justify-content:space-between;align-items:center;gap:.75rem;
+      padding:.55rem .1rem;border-bottom:1px dashed var(--line);text-align:right;
+    }
+    table.data td:last-child{border-bottom:none;}
+    table.data td::before{
+      content:attr(data-label);font-weight:700;color:#6b6355;text-align:left;flex-shrink:0;
+    }
+    table.data td:empty::before{content:none;}
+  }
+</style>
+</head>
+<body class="min-h-screen">
+
+<!-- ============ 設定尚未完成的提示 ============ -->
+<div id="configWarning" class="hidden bg-amber-100 border-b border-amber-300 text-amber-900 px-4 py-3 text-center leading-relaxed">
+  ⚠️ 尚未設定 Google Apps Script 網址（API_URL）。請先部署 Code.gs 並在 index.html 最上方的 CONFIG.API_URL 貼上網址，系統才能讀寫 Google 試算表。目前為離線示範模式，已預先帶入 7 筆已收到的紙本範例資料方便預覽，資料僅存在您瀏覽器中，不會真的儲存到 Google 試算表。
+  <button id="resetSeedBtn" class="ml-2 underline hover:no-underline">重新載入範例資料</button>
+</div>
+
+<!-- ============ Header ============ -->
+<header class="brandbar text-white">
+  <div class="max-w-6xl mx-auto px-4 py-6 flex items-center justify-between flex-wrap gap-3">
+    <div>
+      <p class="text-amber-100 text-sm tracking-widest">TIANSHENG HOSPITAL · 教研中心</p>
+      <h1 class="text-2xl md:text-3xl font-bold mt-1">115 年優良教師暨模範教師評選系統</h1>
+    </div>
+    <div class="text-right text-sm text-amber-100 leading-relaxed">
+      <p>教師評量 60% ・ 培育課程參與 20%</p>
+      <p>教學貢獻 20% ・ 具體優良事蹟 10%</p>
+    </div>
+  </div>
+  <nav class="max-w-6xl mx-auto px-3 grid grid-cols-2 sm:flex gap-2 pb-2">
+    <button data-tab="unit" class="tab-btn active px-3 py-3 text-white/90 rounded-lg sm:rounded-none">① 單位提報</button>
+    <button data-tab="admin" class="tab-btn px-3 py-3 text-white/90 rounded-lg sm:rounded-none">② 教研中心後台</button>
+    <button data-tab="judge" class="tab-btn px-3 py-3 text-white/90 rounded-lg sm:rounded-none">③ 委員評分</button>
+    <button data-tab="result" class="tab-btn px-3 py-3 text-white/90 rounded-lg sm:rounded-none">④ 評選結果</button>
+  </nav>
+</header>
+
+<main class="max-w-6xl mx-auto px-4 py-6">
+
+  <!-- ============ TAB 1：單位提報 ============ -->
+  <section id="tab-unit">
+    <div class="card p-5 mb-5">
+      <h2 class="text-lg font-bold mb-1">單位提報表單</h2>
+      <p class="text-sm text-gray-500 mb-4">由各單位主管填寫。表單編號請填寫教研中心指定的編號（如 11301）；同一編號可重複儲存以修改內容。</p>
+
+      <div class="grid md:grid-cols-4 gap-3 mb-5">
+        <div>
+          <label class="field-label">表單編號 *</label>
+          <input type="text" id="u_id" placeholder="例如 11301">
+        </div>
+        <div>
+          <label class="field-label">提報單位 *</label>
+          <input type="text" id="u_dept" placeholder="例如 藥劑科">
+        </div>
+        <div>
+          <label class="field-label">提報教師姓名 *</label>
+          <input type="text" id="u_name" placeholder="例如 呂奇峯">
+        </div>
+        <div>
+          <label class="field-label">職類</label>
+          <input type="text" id="u_role" placeholder="例如 藥師">
+        </div>
+      </div>
+      <div class="flex gap-2 mb-5">
+        <button id="u_load" class="px-3 py-2 text-sm rounded-lg border border-[var(--line)] hover:bg-amber-50">依表單編號載入既有資料</button>
+        <span id="u_loadStatus" class="text-sm text-gray-500 self-center"></span>
+      </div>
+
+      <!-- 三、教學貢獻 -->
+      <div class="border-t pt-4 mt-2">
+        <h3 class="font-bold mb-3"><span class="section-num">三</span>教學貢獻（20 分）</h3>
+        <div class="grid gap-4">
+          <div class="grid md:grid-cols-[110px_1fr] gap-3 items-start">
+            <div>
+              <label class="field-label">A. 協助取得證照（0–5）</label>
+              <input type="number" id="u_A_score" min="0" max="5" step="0.5" value="0">
+            </div>
+            <div>
+              <label class="field-label">說明（在職學員取得相關專業證照，年度採計一次）</label>
+              <textarea id="u_A_desc" rows="2" placeholder="請說明學員姓名、取得證照名稱與時間"></textarea>
+            </div>
+          </div>
+          <div class="grid md:grid-cols-[110px_1fr] gap-3 items-start">
+            <div>
+              <label class="field-label">B. 輔導學術成果（0–5）</label>
+              <input type="number" id="u_B_score" min="0" max="5" step="0.5" value="0">
+            </div>
+            <div>
+              <label class="field-label">說明（如讀書報告、案例分析）</label>
+              <textarea id="u_B_desc" rows="2" placeholder="請列舉具體成果"></textarea>
+            </div>
+          </div>
+          <div class="grid md:grid-cols-[110px_1fr] gap-3 items-start">
+            <div>
+              <label class="field-label">C. 學術著作發表（0–4）</label>
+              <input type="number" id="u_C_score" min="0" max="4" step="0.5" value="0">
+            </div>
+            <div>
+              <label class="field-label">說明（發表一篇地區性海報可得 4 分）</label>
+              <textarea id="u_C_desc" rows="2" placeholder="請列舉發表著作/海報名稱與場合"></textarea>
+            </div>
+          </div>
+          <div class="grid md:grid-cols-[110px_1fr] gap-3 items-start">
+            <div>
+              <label class="field-label">D. 留任指導學員（0–6）</label>
+              <input type="number" id="u_D_score" min="0" max="6" step="1" value="0">
+            </div>
+            <div>
+              <label class="field-label">說明（新進 2 年內學員留任超過半年，1 人 2 分，最多 3 人）</label>
+              <textarea id="u_D_desc" rows="2" placeholder="請寫出學員姓名"></textarea>
+            </div>
+          </div>
+        </div>
+        <p class="text-right text-sm mt-3 text-gray-600">(三) 總分：<b id="u_threeTotal" class="text-[var(--brand-dark)]">0</b> / 20</p>
+      </div>
+
+      <!-- 四、具體優良事蹟 -->
+      <div class="border-t pt-4 mt-4">
+        <h3 class="font-bold mb-1"><span class="section-num">四</span>教師具體優良事蹟（加分項目，10 分，由 CFD 委員評分）</h3>
+        <p class="text-sm text-gray-500 mb-3">勾選「是」者請繼續填寫下表；勾選「否」者則不須再填寫。每類如有符合者，請以 50 字以內文字敘述。</p>
+        <div class="flex gap-4 mb-3 text-sm">
+          <label class="inline-flex items-center gap-1"><input type="radio" name="u_has4" id="u_has4_no" value="否" checked> 否</label>
+          <label class="inline-flex items-center gap-1"><input type="radio" name="u_has4" id="u_has4_yes" value="是"> 是</label>
+        </div>
+        <div id="u_categoryWrap" class="hidden grid gap-3"></div>
+      </div>
+
+      <div class="border-t pt-4 mt-4 flex items-center gap-3">
+        <button id="u_save" class="px-5 py-2.5 rounded-lg bg-[var(--brand)] text-white font-bold hover:bg-[var(--brand-dark)]">儲存提報資料</button>
+        <span id="u_saveStatus" class="text-sm"></span>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ TAB 2：教研中心後台 ============ -->
+  <section id="tab-admin" class="hidden">
+    <div id="admin_gate" class="card p-6 max-w-sm">
+      <h2 class="font-bold mb-3">教研中心後台登入</h2>
+      <label class="field-label">通行碼</label>
+      <input type="text" id="admin_pass" placeholder="請輸入通行碼">
+      <button id="admin_login" class="mt-3 w-full px-4 py-2 rounded-lg bg-[var(--brand)] text-white font-bold hover:bg-[var(--brand-dark)]">登入</button>
+      <p id="admin_gateMsg" class="text-sm text-red-600 mt-2"></p>
+    </div>
+
+    <div id="admin_panel" class="hidden">
+      <div class="card p-5 mb-5">
+        <h2 class="text-lg font-bold mb-1">教師評量登錄（第一、二部分）</h2>
+        <p class="text-sm text-gray-500 mb-4">由教研中心填寫每位教師的評量分數（1–6 月／7–12 月，各項 0–5 分）與 A 類課程時數。</p>
+        <div class="grid md:grid-cols-3 gap-3 mb-4">
+          <div>
+            <label class="field-label">選擇教師</label>
+            <select id="a_select"></select>
+          </div>
+          <div>
+            <label class="field-label">A 類教學課程時數（14 年度）</label>
+            <input type="number" id="a_hours" min="0" step="0.5" value="0">
+          </div>
+          <div class="flex items-end">
+            <p class="text-sm text-gray-600">(二) 總分：<b id="a_twoTotal" class="text-[var(--brand-dark)]">0</b> / 20</p>
+          </div>
+        </div>
+
+        <div class="overflow-x-auto">
+          <table class="w-full text-sm border-collapse">
+            <thead>
+              <tr class="text-left border-b border-[var(--line)]">
+                <th class="py-2 pr-2">項目</th>
+                <th class="py-2 px-2 w-28">1–6 月</th>
+                <th class="py-2 px-2 w-28">7–12 月</th>
+              </tr>
+            </thead>
+            <tbody id="a_itemsBody"></tbody>
+          </table>
+        </div>
+        <p class="text-right text-sm mt-3 text-gray-600">(一) 總分：<b id="a_oneTotal" class="text-[var(--brand-dark)]">0</b> / 60</p>
+
+        <div class="border-t pt-4 mt-4 flex items-center gap-3">
+          <button id="a_save" class="px-5 py-2.5 rounded-lg bg-[var(--brand)] text-white font-bold hover:bg-[var(--brand-dark)]">儲存評量分數</button>
+          <span id="a_saveStatus" class="text-sm"></span>
+        </div>
+      </div>
+
+      <div class="card p-5 mb-5">
+        <div class="flex items-center justify-between mb-3 flex-wrap gap-2">
+          <div>
+            <h2 class="text-lg font-bold">委員評分進度</h2>
+            <p class="text-sm text-gray-500">每位委員需針對所有勾選「是」的優良事蹟教師完成評分。</p>
+          </div>
+          <span id="finalize_status" class="badge badge-muted">載入中…</span>
+        </div>
+        <div class="overflow-x-auto mb-4">
+          <table class="w-full text-sm border-collapse">
+            <thead>
+              <tr class="text-left border-b border-[var(--line)]">
+                <th class="py-2 px-2">委員姓名</th>
+                <th class="py-2 px-2">已評分 / 應評分</th>
+                <th class="py-2 px-2">狀態</th>
+              </tr>
+            </thead>
+            <tbody id="judge_progressBody"></tbody>
+          </table>
+        </div>
+        <div class="border-t pt-4 flex items-center gap-3 flex-wrap">
+          <button id="finalize_confirm" class="px-5 py-2.5 rounded-lg bg-[var(--brand)] text-white font-bold hover:bg-[var(--brand-dark)]">確認送出，公布模範教師</button>
+          <button id="finalize_revoke" class="px-4 py-2 rounded-lg border border-[var(--line)] text-sm hover:bg-amber-50">撤銷確認（改回可編輯）</button>
+          <span id="finalize_msg" class="text-sm"></span>
+        </div>
+      </div>
+
+      <div class="card p-5">
+        <div class="flex items-center justify-between mb-3">
+          <h2 class="text-lg font-bold">所有提報紀錄</h2>
+          <div class="flex gap-2">
+            <button id="admin_refresh" class="px-3 py-1.5 text-sm rounded-lg border border-[var(--line)] hover:bg-amber-50">重新整理</button>
+            <button id="admin_export" class="px-3 py-1.5 text-sm rounded-lg border border-[var(--line)] hover:bg-amber-50">匯出 CSV</button>
+          </div>
+        </div>
+        <div class="overflow-x-auto">
+          <table class="data w-full text-sm border-collapse">
+            <thead>
+              <tr class="text-left border-b border-[var(--line)]">
+                <th class="py-2 px-2">表單編號</th>
+                <th class="py-2 px-2">單位</th>
+                <th class="py-2 px-2">姓名</th>
+                <th class="py-2 px-2">(一)60</th>
+                <th class="py-2 px-2">(二)20</th>
+                <th class="py-2 px-2">(三)20</th>
+                <th class="py-2 px-2">(四)10</th>
+                <th class="py-2 px-2">總分</th>
+                <th class="py-2 px-2">已評分委員</th>
+                <th class="py-2 px-2">刪除</th>
+              </tr>
+            </thead>
+            <tbody id="admin_tableBody"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ TAB 3：委員評分 ============ -->
+  <section id="tab-judge" class="hidden">
+    <div class="card p-5 mb-5 max-w-md">
+      <h2 class="font-bold mb-3">委員身分</h2>
+      <label class="field-label">委員姓名 *</label>
+      <input type="text" id="j_name" placeholder="請輸入您的姓名">
+      <p class="text-sm text-gray-600 mt-2">系統會記住您的姓名，重新整理後同一裝置不需再輸入。每位候選教師只能就「四、具體優良事蹟」評 1–10 分，多位委員的分數將自動取平均。</p>
+    </div>
+
+    <div id="j_list" class="grid gap-4"></div>
+  </section>
+
+  <!-- ============ TAB 4：評選結果 ============ -->
+  <section id="tab-result" class="hidden">
+    <div class="card p-5">
+      <div class="flex items-center justify-between mb-4 flex-wrap gap-2">
+        <div>
+          <h2 class="text-lg font-bold">115 年優良教師暨模範教師評核結果</h2>
+          <p class="text-sm text-gray-500">依總分（(一)+(二)+(三)+(四)平均）由高至低排序，最高分者為模範教師。</p>
+        </div>
+        <button id="result_refresh" class="px-3 py-1.5 text-sm rounded-lg border border-[var(--line)] hover:bg-amber-50">重新整理</button>
+      </div>
+      <div class="overflow-x-auto">
+        <table class="data w-full text-sm border-collapse">
+          <thead>
+            <tr class="text-left border-b border-[var(--line)]">
+              <th class="py-2 px-2">排名</th>
+              <th class="py-2 px-2">表單編號</th>
+              <th class="py-2 px-2">職類/姓名</th>
+              <th class="py-2 px-2">單位</th>
+              <th class="py-2 px-2">(一)60</th>
+              <th class="py-2 px-2">(二)20</th>
+              <th class="py-2 px-2">(三)20</th>
+              <th class="py-2 px-2">(四)10</th>
+              <th class="py-2 px-2">總分</th>
+              <th class="py-2 px-2">徵選結果</th>
+            </tr>
+          </thead>
+          <tbody id="result_tableBody"></tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<footer class="text-center text-xs text-gray-400 py-8">天晟醫院教研中心 · 內部評核系統</footer>
+
+<script>
+/* ============================================================
+   CONFIG — 請在部署 Google Apps Script 後，把網址貼在這裡
+   ============================================================ */
+const CONFIG = {
+  API_URL: 'https://script.google.com/macros/s/AKfycbyz01AL646lzXMmOOz7oARLKVGaoUda7FMSdhKQoPDvYAZ42Dh5KkmiYFnyuQnqQGwu/exec', // 例如 'https://script.google.com/macros/s/AKfycb.../exec'
+  ADMIN_PASSWORD: '22865',   // 教研中心後台通行碼，請自行修改
+};
+
+const SEED_RECORDS = [
+  {
+    "表單編號": "115001",
+    "提報單位": "藥劑科",
+    "提報教師姓名": "呂奇峯",
+    "職類": "",
+    "一": {
+      "一_1_16": 4,
+      "一_1_712": 4,
+      "一_2_16": 5,
+      "一_2_712": 5,
+      "一_3_16": 5,
+      "一_3_712": 5,
+      "一_4_16": 5,
+      "一_4_712": 5,
+      "一_5_16": 5,
+      "一_5_712": 5,
+      "一_6_16": 5,
+      "一_6_712": 5,
+      "總分": 58
+    },
+    "二": {
+      "A類時數": 6,
+      "總分": 12
+    },
+    "三": {
+      "A分數": 0,
+      "A說明": "無相關證照",
+      "B分數": 5,
+      "B說明": "1.輔導PGY藥師投稿實證年會海報成功(林渝珊2篇及楊識宏1篇) 2.協助王祥智藥師跨領域報告 3.協助楊天PGY藥師化療訓練",
+      "C分數": 0,
+      "C說明": "無發表",
+      "D分數": 4,
+      "D說明": "1.PGY林渝珊和楊識宏藥師今年留任續簽2年",
+      "總分": 9
+    },
+    "四": {
+      "是否": "是",
+      "內容": {
+        "教學年資": {
+          "checked": true,
+          "text": "教學年資：本資任職年資四年，院內臨床教師取得年資一年九個月。"
+        },
+        "教材方面": {
+          "checked": true,
+          "text": "製作及修訂化學治療相關教案與教材，涵蓋首次化療病人衛教、噁心嘔吐預防與處置、化療相關腹瀉、手足症候群，以及化療藥品潑灑與外滲處理等主題，並依臨床操作實務與最新國際醫學指引持續更新。"
+        },
+        "教學方面": {
+          "checked": true,
+          "text": "指導藥學系及醫藥保健商務科實習生，依實習訓練需求規劃並執行院內化學治療相關課程，包含化學治療藥物與安全照護、無菌操作技術及實務操作訓練，並進行醫療照護品質指標(THIS)介紹及住院單一劑量調劑作業(UDD)實務教學。另配合臨床單位需求，跨單位至六樓及九樓病房進行化學治療藥品潑灑處理訓練。"
+        },
+        "師生方面": {
+          "checked": true,
+          "text": "1.喜歡分享所學知識，並樂於教導學生，曾獲實習生推薦樂於分享的老師 2.今年獲得單位同仁推派為單位優良人員。"
+        },
+        "其他方面": {
+          "checked": true,
+          "text": "擔任加護病房專責及化療藥師，正準備重症專科藥師考核，期望能通過考核，貢獻所學。"
+        }
+      },
+      "委員評分": []
+    }
+  },
+  {
+    "表單編號": "115002",
+    "提報單位": "復健科",
+    "提報教師姓名": "邱誌冠",
+    "職類": "",
+    "一": {
+      "一_1_16": 5,
+      "一_1_712": 5,
+      "一_2_16": 5,
+      "一_2_712": 5,
+      "一_3_16": 5,
+      "一_3_712": 5,
+      "一_4_16": 5,
+      "一_4_712": 5,
+      "一_5_16": 5,
+      "一_5_712": 5,
+      "一_6_16": 5,
+      "一_6_712": 5,
+      "總分": 60
+    },
+    "二": {
+      "A類時數": 5,
+      "總分": 10
+    },
+    "三": {
+      "A分數": 0,
+      "A說明": "",
+      "B分數": 5,
+      "B說明": "輔導學員楊嘉文完成專題討論並給予建議，題目為\"The effect of vibration therapy on the gross motor function of children with cerebral palsy\"",
+      "C分數": 4,
+      "C說明": "參與台灣醫事聯合臨床技能發展學會「2026年會員大會暨學術研討會」海報論文發表，題目：以AI輔助提升物理治療期刊報告參與度與學習成效之探討。",
+      "D分數": 6,
+      "D說明": "留任學員包含江岱謙、周彥麟、林彥伶。邱誌冠主任皆曾指導過三位同仁，其中擔任周彥麟的導師。",
+      "總分": 15
+    },
+    "四": {
+      "是否": "是",
+      "內容": {
+        "教學年資": {
+          "checked": true,
+          "text": "於本院任職22年、臨床教師取得年資20年。"
+        },
+        "教材方面": {
+          "checked": true,
+          "text": "參與\"以AI輔助提升物理治療期刊報告參與度與學習成效\"之教案研討與執行。"
+        },
+        "教學方面": {
+          "checked": true,
+          "text": "目前指導學員人數共4人，並擔任學員楊嘉文的導師。邱誌冠主任除了執行PGY、UGY學員的教學活動以精進新進同仁與學生之專業能力，在科內負責同時也負責病人安全教育訓練，固定每個月主辦一次訓練活動，提升同仁病安認知。"
+        },
+        "師生方面": {
+          "checked": true,
+          "text": "邱誌冠主任隨時關心學員的工作壓力以及生活壓力，經常問大家\"壓力會不會太大？\"。因為是主任的身分，其實需要一直確認單位業績以及運作效率，但主任也不忘學員和學生都處於學習階段，經常溫馨關懷並提供臨床工作建議也樂於分享生活，盡可能讓學員在工作和學習取得平衡。"
+        },
+        "其他方面": {
+          "checked": true,
+          "text": "邱誌冠主任從事教學活動多年，尤其著墨在骨科物理治療學與病房物理治療學。許多骨科物理治療學複雜的概念，例如McKenzie Concept或是Mulligan的治療手法，都可以講解到學員清楚理解。而且當學員或是學生在治療上有疑慮，主任皆可以給予建議、協助學員處理臨床介入的難題。"
+        }
+      },
+      "委員評分": []
+    }
+  },
+  {
+    "表單編號": "115003",
+    "提報單位": "放射科",
+    "提報教師姓名": "蔡育臻",
+    "職類": "",
+    "一": {
+      "一_1_16": 5,
+      "一_1_712": 4.5,
+      "一_2_16": 5,
+      "一_2_712": 4.5,
+      "一_3_16": 4.67,
+      "一_3_712": 4.5,
+      "一_4_16": 4.67,
+      "一_4_712": 4,
+      "一_5_16": 4.33,
+      "一_5_712": 4,
+      "一_6_16": 4.33,
+      "一_6_712": 4,
+      "總分": 53.5
+    },
+    "二": {
+      "A類時數": 6,
+      "總分": 12
+    },
+    "三": {
+      "A分數": 5,
+      "A說明": "蔡員輔導PGY學員(黃中廷、簡姿昀)於114年6月取得基礎急救訓練(佐證1、2)及已完訓PGY學員(簡姿昀)於PGY期間通過由國際臨床骨密學會舉辦ISCD國際骨密認證考試，已順利取得證照(佐證3)。",
+      "B分數": 5,
+      "B說明": "蔡員輔導PGY學員(黃中廷)臨床技能評量報告共計9篇以上(佐證4)、影像學術案例報告1篇(佐證5)，跨領域教學2場(115/3/31、115/4/10)。",
+      "C分數": 0,
+      "C說明": "蔡員與PGY學員計畫發表中華醫事放射師公會之海報(目前準備中)。",
+      "D分數": 6,
+      "D說明": "蔡員執行放射職類PGY計畫迄今，共計輔導8名PGY學員，順利留任學員7人/輔導9人,(留任率達77.7%)，成效良好。1.102年7月完成PGY訓練1名:陳緯豪(目前在職中)。2.104年7月完成PGY訓練1名:張榮凱(目前在職中)。3.108年5月完成PGY訓練1名:徐榕蔚(目前在職中)。4.107年6月完成PGY訓練1名:廖威凱(目前在職中)。5.108年5月完成PGY訓練1名:陳韻安(已離職)。6.111年8月完成PGY訓練1名:龔慈琳(已離職)。7.112年4月開始執行PGY訓練1名:簡姿昀(PGY完訓，目前在職中)。8.113年8月開始執行PGY訓練1名:黃中廷(PGY完訓，目前在職中)。9.115年8月開始執行PGY訓練1名:宋欣宜(PGY訓練中，目前在職中)。",
+      "總分": 16
+    },
+    "四": {
+      "是否": "是",
+      "內容": {
+        "教學年資": {
+          "checked": true,
+          "text": "蔡員於97年11月到任，具有16年臨床教學經驗，長期專責科內MRI及高階CT技術傳承與AI應用教學，共指導8位PGY學員及科內新進醫事放射師之培訓工作。"
+        },
+        "教材方面": {
+          "checked": true,
+          "text": "因應AI發展趨勢，將AI影像分析、臨床案例與實機參數融入MRI與高階CT教材。"
+        },
+        "教學方面": {
+          "checked": true,
+          "text": "採講解、示範、操作、回饋及能力確認方式訓練學員，並引導學員認識AI輔助影像分析的應用與限制。"
+        },
+        "師生方面": {
+          "checked": true,
+          "text": "鼓勵學員運用AI整理資料，並培養結果查證，及建立獨立執行檢查的能力與學習信心。依學員程度耐心個別指導，協助分析問題。具高度責任感，工作之餘籌劃並落實教學，對新進學員指導及關懷，使其在臨床工作及學習壓力中達到平衡。"
+        },
+        "其他方面": {
+          "checked": true,
+          "text": "鼓勵及指導PGY受訓學員積極參與學術研究及跨領域教學相關活動，並於108-110年間帶領PGY學員陳韻安參與院內研究計畫，以CT腦部影像探討可調式閥值電腦輔助偵測系統於阿茲海默症之應用，指導學員完成研究設計、資料整理、影像分析及成果撰寫，成果發表於《中華放射線技術學雜誌》46(1)，14-21。"
+        }
+      },
+      "委員評分": []
+    }
+  },
+  {
+    "表單編號": "115004",
+    "提報單位": "檢驗科",
+    "提報教師姓名": "利佳蓉",
+    "職類": "",
+    "一": {
+      "一_1_16": 4,
+      "一_1_712": 4.5,
+      "一_2_16": 4,
+      "一_2_712": 4.5,
+      "一_3_16": 4,
+      "一_3_712": 4.5,
+      "一_4_16": 4,
+      "一_4_712": 4.5,
+      "一_5_16": 4,
+      "一_5_712": 4.5,
+      "一_6_16": 4,
+      "一_6_712": 4.5,
+      "總分": 51.0
+    },
+    "二": {
+      "A類時數": 6,
+      "總分": 12
+    },
+    "三": {
+      "A分數": 0,
+      "A說明": "",
+      "B分數": 5,
+      "B說明": "專題報告：Performance and usability evaluation of three LDH-based malaria rapid diagnostic tests in Kédougou, Senegal (佐證1：專題報告簡報)",
+      "C分數": 6,
+      "C說明": "1.某區域醫院急診通報瘧疾處理經驗分享 2.運用AI驅動型NotebookLM優化血液檢體採集教育訓練之成效評估 (佐證2：學術發表海報)",
+      "D分數": 2,
+      "D說明": "留任學員徐晨崴醫檢師(佐證3：臨床指導員訓練紀錄)",
+      "總分": 13
+    },
+    "四": {
+      "是否": "是",
+      "內容": {
+        "教學年資": {
+          "checked": true,
+          "text": "於教學醫院執行臨床教學經驗2年以上者，96年08月到職，先完整在本院接受兩年PGY訓練後並取得台灣醫檢學會臨床指導教師資格，現為中階教師資格，教學年資達16年。"
+        },
+        "教材方面": {
+          "checked": true,
+          "text": "教學資料內容創新、豐富或善用情境教學。善於利用AI工具，讓新人學員在上線前先行了解相關步驟及手法。"
+        },
+        "教學方面": {
+          "checked": true,
+          "text": "熱心從事教學服務工作，有傑出之表現或貢獻者。為檢驗科中階師資協助檢驗科教學各項相關業務且指導PGY學員。"
+        },
+        "師生方面": {
+          "checked": true,
+          "text": "以高度的責任感和無私奉獻精神，盡心竭力幫助新進學員，奉獻事跡在工作上具有較大影響力和帶動力。為檢驗科品質負責人，輔導學員品質與實作教學作業，盡心竭力協助新進PGY學員。"
+        },
+        "其他方面": {
+          "checked": false,
+          "text": ""
+        }
+      },
+      "委員評分": []
+    }
+  },
+  {
+    "表單編號": "115005",
+    "提報單位": "急診室",
+    "提報教師姓名": "許嘉君",
+    "職類": "",
+    "一": {
+      "一_1_16": 0,
+      "一_1_712": 0,
+      "一_2_16": 0,
+      "一_2_712": 0,
+      "一_3_16": 0,
+      "一_3_712": 0,
+      "一_4_16": 0,
+      "一_4_712": 0,
+      "一_5_16": 0,
+      "一_5_712": 0,
+      "一_6_16": 0,
+      "一_6_712": 0,
+      "總分": 0
+    },
+    "二": {
+      "A類時數": 0,
+      "總分": 0
+    },
+    "三": {
+      "A分數": 5,
+      "A說明": "114年協助學員黃榆鈞取得ETTC證照(附件一)",
+      "B分數": 5,
+      "B說明": "114年協助單位二年期學員李允禎完成讀書報告審核並成功進階N1，輔導單位同仁黃佳瑜、黃心卉通過案例分析。(附件二)",
+      "C分數": 4,
+      "C說明": "參加第九屆臨床成效指標運用發表會-海報發表 主題:運用團隊資源管理降低24小時內相關性急診返診率。(附件三)",
+      "D分數": 2,
+      "D說明": "擔任教師期間，指導學員黃榆鈞成功留任，且於臨床表現良好。",
+      "總分": 16
+    },
+    "四": {
+      "是否": "是",
+      "內容": {
+        "教學年資": {
+          "checked": true,
+          "text": "1.教學年資：於本院執行教學經驗5年以上 2.為院內BLS指導員 3.通過院內講師合格 4.擔任長照急救相關訓練講師 — 具中階臨床教師及院內講師資格，持續培育人才、擔任急救講師，輔導同仁能力進階，助力單位同仁每年順利通過。"
+        },
+        "教材方面": {
+          "checked": true,
+          "text": "運用資訊科技及影片教學，並完成「周邊靜脈留置針操作」教案，透過情境討論與互動提升學習成效；並指導同仁完成能力進階，促進專業成長。"
+        },
+        "教學方面": {
+          "checked": true,
+          "text": "除臨床帶領學員外，與學員互動良好，教學表現深獲肯定；針對特殊二年期學員，以同理心及三方合作方式陪伴輔導，提升學習信心與能力，成功促進學員留任，並培養其帶領新進人員之能力。"
+        },
+        "師生方面": {
+          "checked": true,
+          "text": "主動關懷與協助新進學員，適時給予鼓勵與指導，分享臨床經驗，協助建立學習目標，培養專業能力，營造良好師生互動與學習氛圍。"
+        },
+        "其他方面": {
+          "checked": true,
+          "text": "114年輔導進階通過2位、案例分析通過兩篇，並輔導投稿台灣護理學會個案報告3篇，通過兩篇。"
+        }
+      },
+      "委員評分": []
+    }
+  },
+  {
+    "表單編號": "115006",
+    "提報單位": "兒科病房",
+    "提報教師姓名": "黃薏庭",
+    "職類": "",
+    "一": {
+      "一_1_16": 0,
+      "一_1_712": 0,
+      "一_2_16": 0,
+      "一_2_712": 0,
+      "一_3_16": 0,
+      "一_3_712": 0,
+      "一_4_16": 0,
+      "一_4_712": 0,
+      "一_5_16": 0,
+      "一_5_712": 0,
+      "一_6_16": 0,
+      "一_6_712": 0,
+      "總分": 0
+    },
+    "二": {
+      "A類時數": 0,
+      "總分": 0
+    },
+    "三": {
+      "A分數": 5,
+      "A說明": "協助古翊妘護理師取得APLS證照。(附件一)",
+      "B分數": 5,
+      "B說明": "協助古翊妘護理師完成讀書報告一篇。",
+      "C分數": 4,
+      "C說明": "參加海峽護理高峰論壇發表：運用人工智慧工具提升急救車衛耗材管理效率海報一篇。(附件二) 參加台灣醫事聯合臨床技能發展會發表：運用XR建構提升兒科新進人員靜脈注射流程認知衛教與靜注異常處置。(附件三)",
+      "D分數": 2,
+      "D說明": "擔任古翊妘臨床教師，古員留任成功並擔任其二年期教師。",
+      "總分": 16
+    },
+    "四": {
+      "是否": "是",
+      "內容": {
+        "教學年資": {
+          "checked": true,
+          "text": "1.教學年資:臨床教學經驗5年以上 2.護理部教研組負責實習護生組 3.通過院內講師合格 4具初階資訊護理師資格 — 具儲備臨床教師及院內講師資格，持續培育人才、擔任院內講師，增加學員臨床實務能力及輔導同仁能力進階。"
+        },
+        "教材方面": {
+          "checked": true,
+          "text": "運用AI資訊輔助教學外，亦將臨床實務遇到之問題，提出來與學員討論，增進學員學習內容豐富性，教學活潑有趣。"
+        },
+        "教學方面": {
+          "checked": true,
+          "text": "該員除了帶領單位二年期學員外，也陸續擔任單位新進人員輔導員及負責實習護生業務，在指導實習生及單位新進人員期間均獲得肯定。"
+        },
+        "師生方面": {
+          "checked": true,
+          "text": "該員具高度的責任感及認真負責態度，盡心教導單位新進人員、二年期學員及實習生，皆能在工作上具有較大影響力和帶動力，達到團體互助合作精神。"
+        },
+        "其他方面": {
+          "checked": true,
+          "text": "該員工作期間能盡心照顧病人，對於病童或家屬提出的問題給予解決及回饋，獲得病人、醫療團隊及同儕間認同及肯定。"
+        }
+      },
+      "委員評分": []
+    }
+  },
+  {
+    "表單編號": "115007",
+    "提報單位": "手術室",
+    "提報教師姓名": "王雅恩",
+    "職類": "",
+    "一": {
+      "一_1_16": 0,
+      "一_1_712": 0,
+      "一_2_16": 0,
+      "一_2_712": 0,
+      "一_3_16": 0,
+      "一_3_712": 0,
+      "一_4_16": 0,
+      "一_4_712": 0,
+      "一_5_16": 0,
+      "一_5_712": 0,
+      "一_6_16": 0,
+      "一_6_712": 0,
+      "總分": 0
+    },
+    "二": {
+      "A類時數": 0,
+      "總分": 0
+    },
+    "三": {
+      "A分數": 5,
+      "A說明": "學員張玲禎112年考取ACLS證照，預計參加115年10月ACLS認證課程，提供相資料並與學員一同練習複習，讓張員能順利完成訓練並取得證照(附件1)。",
+      "B分數": 5,
+      "B說明": "輔導張員書寫護理專業讀書報告，給予指導與修正，預計參加今年11月能力進階告審核(附件2)。",
+      "C分數": 2,
+      "C說明": "115年投稿「桃園市護理師護士公會護理創新競賽」，為第一作者，將臨床實務改善成果轉化為專業成果，目前審核中(附件3)。",
+      "D分數": 2,
+      "D說明": "自114年4月15日起指導新進學員，持續提供臨床教學、工作適應及實務操作指導；學員於6月完成新人訓練後留任至今。",
+      "總分": 14
+    },
+    "四": {
+      "是否": "是",
+      "內容": {
+        "教學年資": {
+          "checked": true,
+          "text": "本院任職年資12年，臨床教師年資約3年，擔任臨床教師年資1年3個月。"
+        },
+        "教材方面": {
+          "checked": true,
+          "text": "教學前會依課程主題蒐集最新且正確的資料，並運用ChatGPT、Gamma、Gemini等AI工具整理及製作教材，如護理人員生涯規劃、重症護理概論、感控管制訓練及基礎心電圖學等。"
+        },
+        "教學方面": {
+          "checked": true,
+          "text": "指導學員人數1人，對於單位教學活動積極參與，主動學習並持續吸收新知，教學時會加入臨床實際案例，與學員討論不同情境下的處置方式，例如病人辨識、突發狀況處理及CPR等，透過提問與互動，引導學員思考「這種情況該如何處理」，並分享臨床經驗，讓課程內容更貼近實務。"
+        },
+        "師生方面": {
+          "checked": true,
+          "text": "發現張員心情不佳，經詢問知道是工作中被學姊誤解，張員覺得委屈，不敢澄清，徵求張員同意後與其學姊溝通，再帶著張員跟學姊溝通，說明當時原由，雙方知道彼此想法，澄清誤會。"
+        },
+        "其他方面": {
+          "checked": true,
+          "text": "自擔任臨床教師以來，積極參與課程訓練，吸取多位教師經驗分享。教學過程中也體會到，每位學員的學習方式與需求不同，因此會依學員的程度調整教學內容與方式。即使教學成果不一定每次都能立即看見，我仍會檢視每一次教學經驗，持續修正與精進，希望讓自己的教學更加成熟，也真正符合學員的學習需求。"
+        }
+      },
+      "委員評分": []
+    }
+  }
+];
+
+/* ============================================================
+   共用工具
+   ============================================================ */
+const ITEM_LABELS = [
+  '1. 教學內容準備充分、充實且具可應用性',
+  '2. 教學方法對學員學習有所幫助',
+  '3. 教師教學技能良好',
+  '4. 教學態度認真負責',
+  '5. 對學員的關心與輔導',
+  '6. 對教學的投入程度'
+];
+const CATEGORY_DEFS = [
+  { key: '教學年資', label: '教學年資', hint: '請分別列出任職年資、臨床教師取得年資' },
+  { key: '教材方面', label: '教材方面', hint: '列舉教師製作或修改之教案或教材' },
+  { key: '教學方面', label: '教學方面', hint: '指導學員人數、單位內教學活動、跨單位教學活動等' },
+  { key: '師生方面', label: '師生方面', hint: '請列舉實際案例' },
+  { key: '其他方面', label: '其他方面', hint: '請自行填寫' }
+];
+const HOUR_SCORE_TABLE = [
+  [0,0],[4,5],[4.5,7.5],[5,10],[5.5,11],[6,12],[6.5,13],[7,14],[7.5,15],[8,16],[8.5,17],[9,18],[9.5,19],[10,20]
+];
+function hoursToScore(hours){
+  hours = Number(hours)||0;
+  if(hours < 4) return 0;
+  let score = 0;
+  for(const [h,s] of HOUR_SCORE_TABLE){ if(hours >= h) score = s; }
+  return Math.min(score,20);
+}
+function num(v){ const n = Number(v); return isNaN(n) ? 0 : n; }
+
+let DEMO_MODE = !CONFIG.API_URL;
+let RECORDS_CACHE = [];
+let SETTINGS_CACHE = { resultsFinalized: false, finalizedAt: '' };
+
+// 離線示範模式下，若瀏覽器尚無資料，先帶入已收到的紙本範例資料，方便預覽效果
+if(DEMO_MODE && !localStorage.getItem('demoRecords')){
+  localStorage.setItem('demoRecords', JSON.stringify(SEED_RECORDS));
+}
+
+function getDemoSettings(){
+  return JSON.parse(localStorage.getItem('demoSettings')||'{"resultsFinalized":false,"finalizedAt":""}');
+}
+async function apiList(){
+  if(DEMO_MODE){
+    const records = JSON.parse(localStorage.getItem('demoRecords')||'[]');
+    const settings = getDemoSettings();
+    const withTotals = records.map(r=>({ r, t: computeTotals(r) })).sort((a,b)=>b.t.total-a.t.total);
+    withTotals.forEach(({r,t},i)=>{
+      r.排名 = i+1;
+      r.總分 = t.total;
+      if(!settings.resultsFinalized) r.徵選結果 = '尚未確認';
+      else r.徵選結果 = i===0 && t.total>0 ? '模範教師' : (r.表單編號 ? '優良教師' : '');
+    });
+    return { ok:true, records, settings };
+  }
+  const res = await fetch(CONFIG.API_URL + '?action=list');
+  return res.json();
+}
+async function apiPost(action, data){
+  if(DEMO_MODE){
+    // 離線示範模式：存在 localStorage，僅供介面測試，不會真的寫入 Google 試算表
+    let recs = JSON.parse(localStorage.getItem('demoRecords')||'[]');
+    let scores = JSON.parse(localStorage.getItem('demoScores')||'[]');
+    if(action === 'saveUnit' || action === 'saveAdmin'){
+      let idx = recs.findIndex(r=>String(r.表單編號)===String(data.表單編號));
+      let rec = idx>-1 ? recs[idx] : { 表單編號: data.表單編號, 一:{}, 二:{}, 三:{}, 四:{委員評分:[]} };
+      if(action==='saveUnit'){
+        rec.提報單位 = data.提報單位; rec.提報教師姓名 = data.提報教師姓名; rec.職類 = data.職類;
+        rec.三 = { A分數:num(data.A分數), A說明:data.A說明, B分數:num(data.B分數), B說明:data.B說明,
+          C分數:num(data.C分數), C說明:data.C說明, D分數:num(data.D分數), D說明:data.D說明,
+          總分: num(data.A分數)+num(data.B分數)+num(data.C分數)+num(data.D分數) };
+        rec.四 = { 是否:data.四是否, 內容:data.四內容, 委員評分: rec.四?.委員評分||[] };
+      } else {
+        if(data.提報單位) rec.提報單位 = data.提報單位;
+        if(data.提報教師姓名) rec.提報教師姓名 = data.提報教師姓名;
+        if(data.職類) rec.職類 = data.職類;
+        const oneVals = ['一_1_16','一_1_712','一_2_16','一_2_712','一_3_16','一_3_712','一_4_16','一_4_712','一_5_16','一_5_712','一_6_16','一_6_712'];
+        rec.一 = {}; let sum=0; oneVals.forEach(k=>{ rec.一[k]=num(data[k]); sum+=num(data[k]); }); rec.一.總分 = sum;
+        rec.二 = { A類時數: num(data.A類時數), 總分: hoursToScore(data.A類時數) };
+      }
+      if(idx>-1) recs[idx]=rec; else recs.push(rec);
+      localStorage.setItem('demoRecords', JSON.stringify(recs));
+    }
+    if(action === 'saveCommitteeScore'){
+      let idx = recs.findIndex(r=>String(r.表單編號)===String(data.表單編號));
+      if(idx>-1){
+        let arr = recs[idx].四.委員評分 || [];
+        let jIdx = arr.findIndex(s=>s.委員姓名===data.委員姓名);
+        if(jIdx>-1) arr[jIdx].分數 = num(data.分數); else arr.push({委員姓名:data.委員姓名, 分數:num(data.分數)});
+        recs[idx].四.委員評分 = arr;
+        localStorage.setItem('demoRecords', JSON.stringify(recs));
+      }
+    }
+    if(action === 'deleteRecord'){
+      recs = recs.filter(r=>String(r.表單編號)!==String(data.表單編號));
+      localStorage.setItem('demoRecords', JSON.stringify(recs));
+    }
+    if(action === 'setResultsFinalized'){
+      const settings = { resultsFinalized: !!data.finalized, finalizedAt: data.finalized ? new Date().toISOString() : '' };
+      localStorage.setItem('demoSettings', JSON.stringify(settings));
+      return { ok:true, settings };
+    }
+    return { ok:true };
+  }
+  const res = await fetch(CONFIG.API_URL, {
+    method:'POST',
+    headers:{ 'Content-Type':'text/plain;charset=utf-8' },
+    body: JSON.stringify({ action, data })
+  });
+  return res.json();
+}
+
+function computeTotals(rec){
+  const one = DEMO_MODE ? (rec.一?.總分||0) : (rec.一?.總分||0);
+  const two = DEMO_MODE ? hoursToScore(rec.二?.A類時數) : (rec.二?.總分||0);
+  const three = rec.三?.總分||0;
+  const judgeScores = rec.四?.委員評分||[];
+  const fourAvg = judgeScores.length ? judgeScores.reduce((s,j)=>s+num(j.分數),0)/judgeScores.length : 0;
+  return { one, two, three, fourAvg, total: Math.round((one+two+three+fourAvg)*10)/10 };
+}
+
+/* ============================================================
+   Tabs
+   ============================================================ */
+document.querySelectorAll('.tab-btn').forEach(btn=>{
+  btn.addEventListener('click', ()=>{
+    document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));
+    btn.classList.add('active');
+    ['unit','admin','judge','result'].forEach(t=>{
+      document.getElementById('tab-'+t).classList.toggle('hidden', t !== btn.dataset.tab);
+    });
+    if(btn.dataset.tab === 'judge') renderJudgeList();
+    if(btn.dataset.tab === 'result') renderResult();
+    if(btn.dataset.tab === 'admin' && !document.getElementById('admin_panel').classList.contains('hidden')) renderAdmin();
+  });
+});
+if(DEMO_MODE) document.getElementById('configWarning').classList.remove('hidden');
+document.getElementById('resetSeedBtn')?.addEventListener('click', ()=>{
+  localStorage.setItem('demoRecords', JSON.stringify(SEED_RECORDS));
+  localStorage.removeItem('demoSettings');
+  alert('已重新載入 7 筆範例資料');
+  location.reload();
+});
+
+/* ============================================================
+   TAB 1：單位提報
+   ============================================================ */
+function buildCategoryUI(){
+  const wrap = document.getElementById('u_categoryWrap');
+  wrap.innerHTML = CATEGORY_DEFS.map(c => `
+    <div class="border border-[var(--line)] rounded-lg p-3">
+      <label class="inline-flex items-center gap-2 font-medium text-sm mb-1">
+        <input type="checkbox" class="cat-check" data-key="${c.key}"> ${c.label}
+      </label>
+      <p class="text-sm text-gray-500 mb-2">${c.hint}</p>
+      <textarea class="cat-text" data-key="${c.key}" rows="2" maxlength="200" placeholder="請以 50 字以內文字敘述"></textarea>
+    </div>
+  `).join('');
+}
+buildCategoryUI();
+
+document.getElementById('u_has4_yes').addEventListener('change', updateCategoryVisibility);
+document.getElementById('u_has4_no').addEventListener('change', updateCategoryVisibility);
+function updateCategoryVisibility(){
+  document.getElementById('u_categoryWrap').classList.toggle('hidden', !document.getElementById('u_has4_yes').checked);
+}
+
+function recalcThree(){
+  const total = num(document.getElementById('u_A_score').value) + num(document.getElementById('u_B_score').value) +
+    num(document.getElementById('u_C_score').value) + num(document.getElementById('u_D_score').value);
+  document.getElementById('u_threeTotal').textContent = total;
+}
+['u_A_score','u_B_score','u_C_score','u_D_score'].forEach(id=>{
+  document.getElementById(id).addEventListener('input', recalcThree);
+});
+
+document.getElementById('u_load').addEventListener('click', async ()=>{
+  const id = document.getElementById('u_id').value.trim();
+  const statusEl = document.getElementById('u_loadStatus');
+  if(!id){ statusEl.textContent = '請先輸入表單編號'; return; }
+  statusEl.textContent = '載入中…';
+  const res = await apiList();
+  const rec = (res.records||[]).find(r=>String(r.表單編號)===id);
+  if(!rec){ statusEl.textContent = '找不到此表單編號，將建立新紀錄'; return; }
+  document.getElementById('u_dept').value = rec.提報單位||'';
+  document.getElementById('u_name').value = rec.提報教師姓名||'';
+  document.getElementById('u_role').value = rec.職類||'';
+  document.getElementById('u_A_score').value = rec.三?.A分數||0;
+  document.getElementById('u_A_desc').value = rec.三?.A說明||'';
+  document.getElementById('u_B_score').value = rec.三?.B分數||0;
+  document.getElementById('u_B_desc').value = rec.三?.B說明||'';
+  document.getElementById('u_C_score').value = rec.三?.C分數||0;
+  document.getElementById('u_C_desc').value = rec.三?.C說明||'';
+  document.getElementById('u_D_score').value = rec.三?.D分數||0;
+  document.getElementById('u_D_desc').value = rec.三?.D說明||'';
+  recalcThree();
+  const has4 = rec.四?.是否 === '是';
+  document.getElementById('u_has4_yes').checked = has4;
+  document.getElementById('u_has4_no').checked = !has4;
+  updateCategoryVisibility();
+  const content = rec.四?.內容||{};
+  document.querySelectorAll('.cat-check').forEach(cb=>{ cb.checked = !!(content[cb.dataset.key]?.checked); });
+  document.querySelectorAll('.cat-text').forEach(ta=>{ ta.value = content[ta.dataset.key]?.text||''; });
+  statusEl.textContent = '已載入既有資料，可修改後重新儲存';
+});
+
+document.getElementById('u_save').addEventListener('click', async ()=>{
+  const id = document.getElementById('u_id').value.trim();
+  const dept = document.getElementById('u_dept').value.trim();
+  const name = document.getElementById('u_name').value.trim();
+  const statusEl = document.getElementById('u_saveStatus');
+  if(!id || !dept || !name){ statusEl.textContent = '請填寫表單編號、提報單位與教師姓名'; statusEl.className='text-sm text-red-600'; return; }
+  const content = {};
+  document.querySelectorAll('.cat-check').forEach(cb=>{
+    const key = cb.dataset.key;
+    const ta = document.querySelector(`.cat-text[data-key="${key}"]`);
+    content[key] = { checked: cb.checked, text: ta.value.trim() };
+  });
+  const data = {
+    表單編號: id, 提報單位: dept, 提報教師姓名: name, 職類: document.getElementById('u_role').value.trim(),
+    A分數: num(document.getElementById('u_A_score').value), A說明: document.getElementById('u_A_desc').value,
+    B分數: num(document.getElementById('u_B_score').value), B說明: document.getElementById('u_B_desc').value,
+    C分數: num(document.getElementById('u_C_score').value), C說明: document.getElementById('u_C_desc').value,
+    D分數: num(document.getElementById('u_D_score').value), D說明: document.getElementById('u_D_desc').value,
+    四是否: document.getElementById('u_has4_yes').checked ? '是' : '否',
+    四內容: content
+  };
+  statusEl.textContent = '儲存中…'; statusEl.className='text-sm text-gray-500';
+  const res = await apiPost('saveUnit', data);
+  if(res.ok){ statusEl.textContent = '✓ 已儲存'; statusEl.className='text-sm text-green-700'; }
+  else { statusEl.textContent = '儲存失敗：' + (res.error||''); statusEl.className='text-sm text-red-600'; }
+});
+
+/* ============================================================
+   TAB 2：教研中心後台
+   ============================================================ */
+document.getElementById('admin_login').addEventListener('click', ()=>{
+  const val = document.getElementById('admin_pass').value;
+  if(val === CONFIG.ADMIN_PASSWORD){
+    document.getElementById('admin_gate').classList.add('hidden');
+    document.getElementById('admin_panel').classList.remove('hidden');
+    renderAdmin();
+  } else {
+    document.getElementById('admin_gateMsg').textContent = '通行碼錯誤';
+  }
+});
+
+function buildItemsBody(){
+  const body = document.getElementById('a_itemsBody');
+  body.innerHTML = ITEM_LABELS.map((label,i)=>`
+    <tr class="border-b border-[var(--line)]">
+      <td class="py-2 pr-2">${label}</td>
+      <td class="py-1 px-2"><input type="number" min="0" max="5" step="0.5" class="a-item" data-idx="${i}" data-half="16" value="0"></td>
+      <td class="py-1 px-2"><input type="number" min="0" max="5" step="0.5" class="a-item" data-idx="${i}" data-half="712" value="0"></td>
+    </tr>
+  `).join('');
+  document.querySelectorAll('.a-item').forEach(inp=>inp.addEventListener('input', recalcOne));
+}
+buildItemsBody();
+
+function recalcOne(){
+  let sum = 0;
+  document.querySelectorAll('.a-item').forEach(inp=>{ sum += num(inp.value); });
+  document.getElementById('a_oneTotal').textContent = sum;
+}
+document.getElementById('a_hours').addEventListener('input', ()=>{
+  document.getElementById('a_twoTotal').textContent = hoursToScore(document.getElementById('a_hours').value);
+});
+
+let ADMIN_SELECT_RECORDS = [];
+function computeJudgeCompletion(records){
+  const required = records.filter(r=>r.四?.是否==='是');
+  const requiredIds = required.map(r=>String(r.表單編號));
+  const judgeSet = new Set();
+  records.forEach(r=> (r.四?.委員評分||[]).forEach(s=>judgeSet.add(s.委員姓名)));
+  return Array.from(judgeSet).sort().map(name=>{
+    const scoredIds = required.filter(r=>(r.四?.委員評分||[]).some(s=>s.委員姓名===name)).length;
+    return { name, scored: scoredIds, total: requiredIds.length, complete: scoredIds === requiredIds.length && requiredIds.length>0 };
+  });
+}
+
+function renderFinalizeStatus(settings){
+  const statusEl = document.getElementById('finalize_status');
+  if(settings.resultsFinalized){
+    statusEl.textContent = '已確認送出' + (settings.finalizedAt ? '（' + new Date(settings.finalizedAt).toLocaleString('zh-TW') + '）' : '');
+    statusEl.className = 'badge badge-good';
+  } else {
+    statusEl.textContent = '尚未確認，結果頁僅顯示分數';
+    statusEl.className = 'badge badge-gold';
+  }
+}
+
+async function renderAdmin(){
+  const res = await apiList();
+  ADMIN_SELECT_RECORDS = res.records||[];
+  RECORDS_CACHE = ADMIN_SELECT_RECORDS;
+  SETTINGS_CACHE = res.settings || { resultsFinalized:false, finalizedAt:'' };
+  renderFinalizeStatus(SETTINGS_CACHE);
+
+  const progressBody = document.getElementById('judge_progressBody');
+  const completion = computeJudgeCompletion(ADMIN_SELECT_RECORDS);
+  progressBody.innerHTML = completion.length
+    ? completion.map(c=>`
+        <tr class="border-b border-[var(--line)]">
+          <td class="py-2 px-2" data-label="委員姓名">${c.name}</td>
+          <td class="py-2 px-2" data-label="已評分/應評分">${c.scored} / ${c.total}</td>
+          <td class="py-2 px-2" data-label="狀態">${c.complete ? '<span class="badge badge-good">已完成</span>' : '<span class="badge badge-gold">評分中</span>'}</td>
+        </tr>`).join('')
+    : `<tr><td colspan="3" class="py-4 text-center text-gray-400">尚無委員開始評分</td></tr>`;
+
+  const select = document.getElementById('a_select');
+  select.innerHTML = '<option value="">— 請選擇 —</option>' +
+    ADMIN_SELECT_RECORDS.map(r=>`<option value="${r.表單編號}">${r.表單編號} ・ ${r.提報單位||''} ${r.提報教師姓名||''}</option>`).join('');
+
+  const body = document.getElementById('admin_tableBody');
+  if(!ADMIN_SELECT_RECORDS.length){
+    body.innerHTML = `<tr><td colspan="10" class="py-6 text-center text-gray-400">尚無提報資料</td></tr>`;
+  } else {
+    body.innerHTML = ADMIN_SELECT_RECORDS.map(r=>{
+      const t = computeTotals(r);
+      const judgeNames = (r.四?.委員評分||[]).map(s=>s.委員姓名);
+      return `<tr class="border-b border-[var(--line)]">
+        <td class="py-2 px-2 font-bold" data-label="表單編號">${r.表單編號}</td>
+        <td class="py-2 px-2" data-label="單位">${r.提報單位||''}</td>
+        <td class="py-2 px-2" data-label="姓名">${r.提報教師姓名||''}</td>
+        <td class="py-2 px-2" data-label="(一)60">${t.one}</td>
+        <td class="py-2 px-2" data-label="(二)20">${t.two}</td>
+        <td class="py-2 px-2" data-label="(三)20">${t.three}</td>
+        <td class="py-2 px-2" data-label="(四)10">${judgeNames.length ? t.fourAvg.toFixed(1) : '—'}</td>
+        <td class="py-2 px-2 font-bold" data-label="總分">${t.total}</td>
+        <td class="py-2 px-2 text-sm text-gray-600" data-label="已評分委員">${r.四?.是否==='是' ? (judgeNames.join('、')||'尚無') : '—'}</td>
+        <td class="py-2 px-2" data-label="刪除"><button class="text-red-600 text-sm del-btn px-3 py-1.5 border border-red-200 rounded-lg" data-id="${r.表單編號}">刪除</button></td>
+      </tr>`;
+    }).join('');
+    document.querySelectorAll('.del-btn').forEach(btn=>{
+      btn.addEventListener('click', async ()=>{
+        if(!confirm(`確定要刪除表單編號 ${btn.dataset.id} 嗎？`)) return;
+        await apiPost('deleteRecord', { 表單編號: btn.dataset.id });
+        renderAdmin();
+      });
+    });
+  }
+}
+
+document.getElementById('finalize_confirm').addEventListener('click', async ()=>{
+  const completion = computeJudgeCompletion(ADMIN_SELECT_RECORDS);
+  const incomplete = completion.filter(c=>!c.complete);
+  let msg = '確定要送出並公布模範教師嗎？送出後「評選結果」頁將顯示最終名次。';
+  if(incomplete.length){
+    msg = `注意：委員 ${incomplete.map(c=>c.name).join('、')} 尚未完成所有評分。${msg}`;
+  }
+  if(!confirm(msg)) return;
+  const statusMsg = document.getElementById('finalize_msg');
+  statusMsg.textContent = '送出中…'; statusMsg.className='text-sm text-gray-500';
+  const res = await apiPost('setResultsFinalized', { finalized: true });
+  if(res.ok){ statusMsg.textContent = '✓ 已公布'; statusMsg.className='text-sm text-green-700'; renderAdmin(); }
+  else { statusMsg.textContent = '送出失敗'; statusMsg.className='text-sm text-red-600'; }
+});
+
+document.getElementById('finalize_revoke').addEventListener('click', async ()=>{
+  if(!confirm('確定要撤銷公布，改回可編輯狀態嗎？「評選結果」頁將暫時不顯示模範教師。')) return;
+  const statusMsg = document.getElementById('finalize_msg');
+  const res = await apiPost('setResultsFinalized', { finalized: false });
+  if(res.ok){ statusMsg.textContent = '已撤銷'; statusMsg.className='text-sm text-gray-600'; renderAdmin(); }
+  else { statusMsg.textContent = '操作失敗'; statusMsg.className='text-sm text-red-600'; }
+});
+
+document.getElementById('a_select').addEventListener('change', ()=>{
+  const id = document.getElementById('a_select').value;
+  const rec = ADMIN_SELECT_RECORDS.find(r=>String(r.表單編號)===id);
+  document.querySelectorAll('.a-item').forEach(inp=>{
+    const key = `一_${num(inp.dataset.idx)+1}_${inp.dataset.half}`;
+    inp.value = rec?.一?.[key] || 0;
+  });
+  document.getElementById('a_hours').value = rec?.二?.A類時數 || 0;
+  recalcOne();
+  document.getElementById('a_twoTotal').textContent = hoursToScore(document.getElementById('a_hours').value);
+});
+
+document.getElementById('a_save').addEventListener('click', async ()=>{
+  const id = document.getElementById('a_select').value;
+  const statusEl = document.getElementById('a_saveStatus');
+  if(!id){ statusEl.textContent = '請先選擇教師'; statusEl.className='text-sm text-red-600'; return; }
+  const data = { 表單編號: id, A類時數: num(document.getElementById('a_hours').value) };
+  document.querySelectorAll('.a-item').forEach(inp=>{
+    const key = `一_${num(inp.dataset.idx)+1}_${inp.dataset.half}`;
+    data[key] = num(inp.value);
+  });
+  statusEl.textContent = '儲存中…'; statusEl.className='text-sm text-gray-500';
+  const res = await apiPost('saveAdmin', data);
+  if(res.ok){ statusEl.textContent = '✓ 已儲存'; statusEl.className='text-sm text-green-700'; renderAdmin(); }
+  else { statusEl.textContent = '儲存失敗：' + (res.error||''); statusEl.className='text-sm text-red-600'; }
+});
+
+document.getElementById('admin_refresh').addEventListener('click', renderAdmin);
+document.getElementById('admin_export').addEventListener('click', ()=>{
+  const rows = [['表單編號','提報單位','姓名','職類','(一)60','(二)20','(三)20','(四)10','總分','徵選結果']];
+  ADMIN_SELECT_RECORDS.slice().sort((a,b)=>computeTotals(b).total-computeTotals(a).total).forEach((r,i)=>{
+    const t = computeTotals(r);
+    rows.push([r.表單編號, r.提報單位||'', r.提報教師姓名||'', r.職類||'', t.one, t.two, t.three,
+      (r.四?.委員評分||[]).length ? t.fourAvg.toFixed(1) : '', t.total, i===0 && t.total>0 ? '模範教師' : '優良教師']);
+  });
+  const csv = rows.map(r=>r.map(v=>`"${String(v).replace(/"/g,'""')}"`).join(',')).join('\n');
+  const blob = new Blob(['\uFEFF'+csv], { type:'text/csv;charset=utf-8;' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = '115優良教師評選結果.csv';
+  a.click();
+});
+
+/* ============================================================
+   TAB 3：委員評分
+   ============================================================ */
+const savedJudgeName = localStorage.getItem('judgeName');
+if(savedJudgeName) document.getElementById('j_name').value = savedJudgeName;
+document.getElementById('j_name').addEventListener('input', ()=>{
+  localStorage.setItem('judgeName', document.getElementById('j_name').value.trim());
+});
+
+async function renderJudgeList(){
+  const res = await apiList();
+  RECORDS_CACHE = res.records||[];
+  const list = document.getElementById('j_list');
+  const withStory = RECORDS_CACHE.filter(r=>r.四?.是否==='是');
+  if(!withStory.length){
+    list.innerHTML = `<div class="card p-5 text-center text-gray-400">目前尚無勾選「是」的優良事蹟需要評分</div>`;
+    return;
+  }
+  list.innerHTML = withStory.map(r=>{
+    const t = computeTotals(r);
+    const content = r.四?.內容||{};
+    const items = CATEGORY_DEFS.filter(c=>content[c.key]?.checked && content[c.key]?.text).map(c=>`
+      <div class="mb-2">
+        <span class="badge badge-muted">${c.label}</span>
+        <p class="text-sm text-gray-700 mt-1">${(content[c.key].text||'').replace(/</g,'&lt;')}</p>
+      </div>
+    `).join('') || `<p class="text-sm text-gray-400">（未填寫具體內容）</p>`;
+    const scores = r.四?.委員評分||[];
+    const avg = scores.length ? (scores.reduce((s,j)=>s+num(j.分數),0)/scores.length).toFixed(1) : '—';
+    return `
+      <div class="card p-5">
+        <div class="flex justify-between items-start flex-wrap gap-2 mb-3">
+          <div>
+            <p class="font-bold">${r.表單編號} ・ ${r.提報單位||''} ${r.提報教師姓名||''}</p>
+            <p class="text-sm text-gray-500">${r.職類||''}</p>
+          </div>
+          <div class="text-right text-sm">
+            <span class="badge badge-gold">目前委員平均：${avg}</span>
+            <p class="text-sm text-gray-500 mt-1">已評分 ${scores.length} 位委員</p>
+          </div>
+        </div>
+        <div class="flex flex-wrap gap-2 mb-3">
+          <span class="badge badge-muted">(一) 教師評量 ${t.one} / 60</span>
+          <span class="badge badge-muted">(二) 培育課程 ${t.two} / 20</span>
+          <span class="badge badge-muted">(三) 教學貢獻 ${t.three} / 20</span>
+          <span class="badge badge-good">(一)+(二)+(三) 小計 ${(t.one+t.two+t.three).toFixed(1)} / 100</span>
+        </div>
+        <p class="text-sm text-gray-500 mb-2">以上為其他評分項目，僅供評分時參考，本頁請只針對「具體優良事蹟」給分。</p>
+        ${items}
+        <div class="flex items-center gap-3 mt-4 border-t pt-3">
+          <label class="text-sm text-gray-600">您的評分（1–10）</label>
+          <input type="number" min="1" max="10" step="1" class="judge-score w-24" data-id="${r.表單編號}" value="${scores.find(s=>s.委員姓名===document.getElementById('j_name').value.trim())?.分數||''}">
+          <button class="judge-save px-4 py-1.5 rounded-lg bg-[var(--brand)] text-white text-sm font-bold hover:bg-[var(--brand-dark)]" data-id="${r.表單編號}">送出評分</button>
+          <span class="judge-status text-sm" data-id="${r.表單編號}"></span>
+        </div>
+      </div>
+    `;
+  }).join('');
+
+  document.querySelectorAll('.judge-save').forEach(btn=>{
+    btn.addEventListener('click', async ()=>{
+      const id = btn.dataset.id;
+      const name = document.getElementById('j_name').value.trim();
+      const statusEl = document.querySelector(`.judge-status[data-id="${id}"]`);
+      const scoreInp = document.querySelector(`.judge-score[data-id="${id}"]`);
+      if(!name){ statusEl.textContent = '請先填寫委員姓名'; statusEl.className='judge-status text-sm text-red-600'; return; }
+      const score = num(scoreInp.value);
+      if(score < 1 || score > 10){ statusEl.textContent = '請輸入 1–10 分'; statusEl.className='judge-status text-sm text-red-600'; return; }
+      statusEl.textContent = '送出中…'; statusEl.className='judge-status text-sm text-gray-500';
+      const res = await apiPost('saveCommitteeScore', { 表單編號: id, 委員姓名: name, 分數: score });
+      if(res.ok){ statusEl.textContent = '✓ 已送出'; statusEl.className='judge-status text-sm text-green-700'; renderJudgeList(); }
+      else { statusEl.textContent = '送出失敗'; statusEl.className='judge-status text-sm text-red-600'; }
+    });
+  });
+}
+
+/* ============================================================
+   TAB 4：評選結果
+   ============================================================ */
+async function renderResult(){
+  const res = await apiList();
+  const records = res.records||[];
+  const settings = res.settings || { resultsFinalized:false };
+  RECORDS_CACHE = records;
+  SETTINGS_CACHE = settings;
+
+  const bannerId = 'result_banner';
+  let banner = document.getElementById(bannerId);
+  if(!banner){
+    banner = document.createElement('div');
+    banner.id = bannerId;
+    document.querySelector('#tab-result .card').prepend(banner);
+  }
+  if(!settings.resultsFinalized){
+    banner.className = 'mb-4 rounded-lg bg-amber-50 border border-amber-200 text-amber-800 text-sm px-3 py-2';
+    banner.textContent = '教研中心尚未確認最終結果，以下分數僅供參考，「模範教師」名次將於確認送出後公布。';
+  } else {
+    banner.className = 'mb-4 rounded-lg bg-green-50 border border-green-200 text-green-800 text-sm px-3 py-2';
+    banner.textContent = '教研中心已確認送出' + (settings.finalizedAt ? '（' + new Date(settings.finalizedAt).toLocaleString('zh-TW') + '）' : '') + '，以下為正式結果。';
+  }
+
+  const withTotals = records.map(r=>({ r, t: computeTotals(r) })).sort((a,b)=>b.t.total-a.t.total);
+  const body = document.getElementById('result_tableBody');
+  if(!withTotals.length){
+    body.innerHTML = `<tr><td colspan="10" class="py-6 text-center text-gray-400">尚無資料</td></tr>`;
+    return;
+  }
+  body.innerHTML = withTotals.map(({r,t},i)=>{
+    const isTop = i===0 && t.total>0 && settings.resultsFinalized;
+    let badge;
+    if(!settings.resultsFinalized) badge = '<span class="badge badge-muted">尚未確認</span>';
+    else if(isTop) badge = '<span class="badge badge-gold">模範教師</span>';
+    else badge = '<span class="badge badge-good">優良教師</span>';
+    return `<tr class="border-b border-[var(--line)] ${isTop?'bg-amber-50':''}">
+      <td class="py-2 px-2 font-bold" data-label="排名">${i+1}</td>
+      <td class="py-2 px-2" data-label="表單編號">${r.表單編號}</td>
+      <td class="py-2 px-2" data-label="職類/姓名">${r.職類||''} ${r.提報教師姓名||''}</td>
+      <td class="py-2 px-2" data-label="單位">${r.提報單位||''}</td>
+      <td class="py-2 px-2" data-label="(一)60">${t.one}</td>
+      <td class="py-2 px-2" data-label="(二)20">${t.two}</td>
+      <td class="py-2 px-2" data-label="(三)20">${t.three}</td>
+      <td class="py-2 px-2" data-label="(四)10">${(r.四?.委員評分||[]).length ? t.fourAvg.toFixed(1) : '—'}</td>
+      <td class="py-2 px-2 font-bold" data-label="總分">${t.total}</td>
+      <td class="py-2 px-2" data-label="徵選結果">${badge}</td>
+    </tr>`;
+  }).join('');
+}
+
+document.getElementById('result_refresh').addEventListener('click', renderResult);
+
+/* 初始渲染 */
+recalcThree();
+</script>
+</body>
+</html>
