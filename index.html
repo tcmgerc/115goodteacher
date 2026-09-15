@@ -323,7 +323,18 @@
       <p class="text-sm text-gray-600 mt-2">系統會記住您的姓名，重新整理後同一裝置不需再輸入。每位候選教師只能就「四、具體優良事蹟」評 1–10 分，多位委員的分數將自動取平均。</p>
     </div>
 
+    <div id="j_submitBar" class="card p-4 mb-3 hidden">
+      <p id="j_progress" class="text-sm text-gray-600">尚未開始評分</p>
+    </div>
+
     <div id="j_list" class="grid gap-4"></div>
+
+    <div id="j_submitFooter" class="card p-5 mt-5">
+      <p class="font-bold mb-1">全部評分完成後，請按此鍵一次送出</p>
+      <p class="text-sm text-gray-500 mb-3">送出前請確認上方每一位教師都已填寫 1–10 分。</p>
+      <button id="j_submitAll" class="w-full sm:w-auto px-6 py-3 rounded-lg bg-[var(--brand)] text-white font-bold hover:bg-[var(--brand-dark)]">送出所有評分</button>
+      <p id="j_submitMsg" class="text-sm mt-3"></p>
+    </div>
   </section>
 
   <!-- ============ TAB 4：評選結果 ============ -->
@@ -367,7 +378,7 @@
    CONFIG — 請在部署 Google Apps Script 後，把網址貼在這裡
    ============================================================ */
 const CONFIG = {
-  API_URL: 'https://script.google.com/macros/s/AKfycbyz01AL646lzXMmOOz7oARLKVGaoUda7FMSdhKQoPDvYAZ42Dh5KkmiYFnyuQnqQGwu/exec', // 例如 'https://script.google.com/macros/s/AKfycb.../exec'
+  API_URL: 'https://script.google.com/macros/s/AKfycbyz01AL646lzXMmOOz7oARLKVGaoUda7FMSdhKQoPDvYAZ42Dh5KkmiYFnyuQnqQGwu/exec',
   ADMIN_PASSWORD: '22865',   // 教研中心後台通行碼，請自行修改
 };
 
@@ -1226,16 +1237,27 @@ if(savedJudgeName) document.getElementById('j_name').value = savedJudgeName;
 document.getElementById('j_name').addEventListener('input', ()=>{
   localStorage.setItem('judgeName', document.getElementById('j_name').value.trim());
 });
+document.getElementById('j_name').addEventListener('change', ()=>{
+  if(!document.getElementById('tab-judge').classList.contains('hidden')) renderJudgeList();
+});
 
 async function renderJudgeList(){
   const res = await apiList();
   RECORDS_CACHE = res.records||[];
   const list = document.getElementById('j_list');
+  const submitBar = document.getElementById('j_submitBar');
+  const submitFooter = document.getElementById('j_submitFooter');
   const withStory = RECORDS_CACHE.filter(r=>r.四?.是否==='是');
   if(!withStory.length){
     list.innerHTML = `<div class="card p-5 text-center text-gray-400">目前尚無勾選「是」的優良事蹟需要評分</div>`;
+    submitBar.classList.add('hidden');
+    submitFooter.classList.add('hidden');
+    document.getElementById('j_submitMsg').textContent = '';
     return;
   }
+  submitBar.classList.remove('hidden');
+  submitFooter.classList.remove('hidden');
+  const judgeName = document.getElementById('j_name').value.trim();
   list.innerHTML = withStory.map(r=>{
     const t = computeTotals(r);
     const content = r.四?.內容||{};
@@ -1247,8 +1269,9 @@ async function renderJudgeList(){
     `).join('') || `<p class="text-sm text-gray-400">（未填寫具體內容）</p>`;
     const scores = r.四?.委員評分||[];
     const avg = scores.length ? (scores.reduce((s,j)=>s+num(j.分數),0)/scores.length).toFixed(1) : '—';
+    const myScore = scores.find(s=>s.委員姓名===judgeName)?.分數 || '';
     return `
-      <div class="card p-5">
+      <div class="card p-5 judge-card" data-id="${r.表單編號}" data-name="${(r.提報教師姓名||'').replace(/"/g,'')}">
         <div class="flex justify-between items-start flex-wrap gap-2 mb-3">
           <div>
             <p class="font-bold">${r.表單編號} ・ ${r.提報單位||''} ${r.提報教師姓名||''}</p>
@@ -1269,30 +1292,78 @@ async function renderJudgeList(){
         ${items}
         <div class="flex items-center gap-3 mt-4 border-t pt-3">
           <label class="text-sm text-gray-600">您的評分（1–10）</label>
-          <input type="number" min="1" max="10" step="1" class="judge-score w-24" data-id="${r.表單編號}" value="${scores.find(s=>s.委員姓名===document.getElementById('j_name').value.trim())?.分數||''}">
-          <button class="judge-save px-4 py-1.5 rounded-lg bg-[var(--brand)] text-white text-sm font-bold hover:bg-[var(--brand-dark)]" data-id="${r.表單編號}">送出評分</button>
-          <span class="judge-status text-sm" data-id="${r.表單編號}"></span>
+          <input type="number" min="1" max="10" step="1" class="judge-score w-24" data-id="${r.表單編號}" value="${myScore}">
         </div>
       </div>
     `;
   }).join('');
 
-  document.querySelectorAll('.judge-save').forEach(btn=>{
-    btn.addEventListener('click', async ()=>{
-      const id = btn.dataset.id;
-      const name = document.getElementById('j_name').value.trim();
-      const statusEl = document.querySelector(`.judge-status[data-id="${id}"]`);
-      const scoreInp = document.querySelector(`.judge-score[data-id="${id}"]`);
-      if(!name){ statusEl.textContent = '請先填寫委員姓名'; statusEl.className='judge-status text-sm text-red-600'; return; }
-      const score = num(scoreInp.value);
-      if(score < 1 || score > 10){ statusEl.textContent = '請輸入 1–10 分'; statusEl.className='judge-status text-sm text-red-600'; return; }
-      statusEl.textContent = '送出中…'; statusEl.className='judge-status text-sm text-gray-500';
-      const res = await apiPost('saveCommitteeScore', { 表單編號: id, 委員姓名: name, 分數: score });
-      if(res.ok){ statusEl.textContent = '✓ 已送出'; statusEl.className='judge-status text-sm text-green-700'; renderJudgeList(); }
-      else { statusEl.textContent = '送出失敗'; statusEl.className='judge-status text-sm text-red-600'; }
-    });
+  document.querySelectorAll('.judge-score').forEach(inp=>{
+    inp.addEventListener('input', updateJudgeProgress);
+  });
+  updateJudgeProgress();
+}
+
+function updateJudgeProgress(){
+  const inputs = Array.from(document.querySelectorAll('.judge-score'));
+  const filled = inputs.filter(i=>i.value !== '').length;
+  const progressEl = document.getElementById('j_progress');
+  if(progressEl){
+    progressEl.textContent = filled === inputs.length
+      ? `已全部填寫（${filled}/${inputs.length}），可以送出`
+      : `已填寫 ${filled} / ${inputs.length} 位，尚有 ${inputs.length - filled} 位未評分`;
+  }
+  document.querySelectorAll('.judge-card').forEach(card=>{
+    const inp = card.querySelector('.judge-score');
+    card.classList.toggle('ring-2', inp.value === '');
+    card.classList.toggle('ring-red-300', inp.value === '');
   });
 }
+
+document.getElementById('j_submitAll').addEventListener('click', async ()=>{
+  const msgEl = document.getElementById('j_submitMsg');
+  const name = document.getElementById('j_name').value.trim();
+  if(!name){
+    msgEl.textContent = '請先在上方填寫您的委員姓名，再開始評分。';
+    msgEl.className = 'text-sm mb-4 text-red-600 font-bold';
+    document.getElementById('j_name').focus();
+    return;
+  }
+  const inputs = Array.from(document.querySelectorAll('.judge-score'));
+  const missing = inputs.filter(i=>{
+    const v = i.value;
+    return v === '' || num(v) < 1 || num(v) > 10;
+  });
+  if(missing.length){
+    const names = missing.map(i=>{
+      const card = i.closest('.judge-card');
+      return `${card.dataset.id} ${card.dataset.name}`;
+    });
+    msgEl.innerHTML = `⚠️ 還有 <b>${missing.length}</b> 位教師尚未評分（1–10 分），請填寫完畢後再一次送出：<br>${names.join('、')}`;
+    msgEl.className = 'text-sm mb-4 text-red-600 font-bold';
+    missing[0].closest('.judge-card').scrollIntoView({ behavior:'smooth', block:'center' });
+    missing[0].focus();
+    return;
+  }
+  msgEl.textContent = '送出中…'; msgEl.className = 'text-sm mb-4 text-gray-500';
+  const btn = document.getElementById('j_submitAll');
+  btn.disabled = true;
+  try{
+    for(const inp of inputs){
+      const res = await apiPost('saveCommitteeScore', { 表單編號: inp.dataset.id, 委員姓名: name, 分數: num(inp.value) });
+      if(!res.ok) throw new Error(res.error || '送出失敗');
+    }
+    msgEl.textContent = `✓ 已送出全部 ${inputs.length} 位教師的評分，感謝您！`;
+    msgEl.className = 'text-sm mb-4 text-green-700 font-bold';
+    renderJudgeList();
+  } catch(err){
+    msgEl.textContent = '送出失敗，請檢查網路連線後重試：' + err.message;
+    msgEl.className = 'text-sm mb-4 text-red-600 font-bold';
+  } finally {
+    btn.disabled = false;
+  }
+});
+
 
 /* ============================================================
    TAB 4：評選結果
