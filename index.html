@@ -95,7 +95,7 @@
 <header class="brandbar text-white">
   <div class="max-w-6xl mx-auto px-4 py-6 flex items-center justify-between flex-wrap gap-3">
     <div>
-      <p class="text-amber-100 text-sm tracking-widest">天成醫療社團法人天晟醫院 · 教研中心</p>
+      <p class="text-amber-100 text-sm tracking-widest">TIANSHENG HOSPITAL · 教研中心</p>
       <h1 class="text-2xl md:text-3xl font-bold mt-1">115 年優良教師暨模範教師評選系統</h1>
     </div>
     <div class="text-right text-sm text-amber-100 leading-relaxed">
@@ -373,12 +373,18 @@
 
 <footer class="text-center text-xs text-gray-400 py-8">天晟醫院教研中心 · 內部評核系統</footer>
 
+<!-- 隱藏的表單＋iframe：內容較長的「單位提報」用這個送出，完全避開瀏覽器 CORS 限制 -->
+<iframe id="hiddenPostFrame" name="hiddenPostFrame" style="display:none" title="background-submit"></iframe>
+<form id="hiddenPostForm" method="POST" target="hiddenPostFrame" style="display:none">
+  <input type="hidden" name="payload" id="hiddenPostPayload">
+</form>
+
 <script>
 /* ============================================================
    CONFIG — 請在部署 Google Apps Script 後，把網址貼在這裡
    ============================================================ */
 const CONFIG = {
-  API_URL: 'https://script.google.com/macros/s/AKfycbwWOPjhpaoRMCVJMVPm1SYx8X3DsaaClW7f4twUUPOfCGe7ZNhx0gWr3_7p4Vdulfxa/exec',
+  API_URL: 'https://script.google.com/macros/s/AKfycbxtNbk2GWRrctpRv7Iq4sqcoSlwmjcwD3IeCQXnK-kxi3Tq_S4fzazqlY6P8wjGa4Q0/exec',
   ADMIN_PASSWORD: '22865',   // 教研中心後台通行碼，請自行修改
 };
 
@@ -874,9 +880,86 @@ async function apiList(){
     });
     return { ok:true, records, settings };
   }
-  const res = await fetch(CONFIG.API_URL + '?action=list');
-  return res.json();
+  const res = await apiListLive();
+  return res;
 }
+
+/* ------------------------------------------------------------
+   實際連線層：一律改用 <script> 標籤（JSONP）讀取／小型寫入，
+   完全避開瀏覽器對 Google Apps Script 導轉網址的 CORS 限制；
+   內容較長的「單位提報表單」則用隱藏表單 + iframe 以 POST 送出，
+   同樣不受 CORS 影響，也沒有網址長度限制。
+   ------------------------------------------------------------ */
+function jsonpRequest(params, timeoutMs){
+  timeoutMs = timeoutMs || 20000;
+  return new Promise((resolve, reject) => {
+    const cbName = '__jsonp_cb_' + Date.now() + '_' + Math.random().toString(36).slice(2);
+    const script = document.createElement('script');
+    let done = false;
+    const cleanup = () => {
+      done = true;
+      delete window[cbName];
+      script.remove();
+      clearTimeout(timer);
+    };
+    const timer = setTimeout(() => {
+      if(done) return;
+      cleanup();
+      reject(new Error('連線逾時，請檢查網路連線後再試一次'));
+    }, timeoutMs);
+    window[cbName] = (data) => {
+      if(done) return;
+      cleanup();
+      resolve(data);
+    };
+    const qs = new URLSearchParams({ ...params, callback: cbName }).toString();
+    script.src = CONFIG.API_URL + '?' + qs;
+    script.onerror = () => {
+      if(done) return;
+      cleanup();
+      reject(new Error('無法連線到後端服務，請確認網路連線'));
+    };
+    document.body.appendChild(script);
+  });
+}
+
+function submitViaHiddenForm(action, data, timeoutMs){
+  timeoutMs = timeoutMs || 20000;
+  return new Promise((resolve, reject) => {
+    const iframe = document.getElementById('hiddenPostFrame');
+    const form = document.getElementById('hiddenPostForm');
+    const payloadInput = document.getElementById('hiddenPostPayload');
+    let done = false;
+    const cleanup = () => { done = true; iframe.removeEventListener('load', onload); clearTimeout(timer); };
+    const onload = () => {
+      if(done) return;
+      cleanup();
+      // 隱藏 iframe 收到回應內容屬於跨網域，JS 無法讀取實際結果，
+      // 以「表單已送出完成」視為成功；儲存後畫面會重新抓取最新資料，可再次確認。
+      resolve({ ok: true });
+    };
+    const timer = setTimeout(() => {
+      if(done) return;
+      cleanup();
+      reject(new Error('送出逾時，請檢查網路連線後再試一次'));
+    }, timeoutMs);
+    iframe.addEventListener('load', onload);
+    form.action = CONFIG.API_URL;
+    payloadInput.value = JSON.stringify({ action, data });
+    form.submit();
+  });
+}
+
+async function apiListLive(){
+  return jsonpRequest({ action: 'list' });
+}
+async function apiPostLive(action, data){
+  if(action === 'saveUnit'){
+    return submitViaHiddenForm(action, data);
+  }
+  return jsonpRequest({ action, data: JSON.stringify(data) });
+}
+
 async function apiPost(action, data){
   if(DEMO_MODE){
     // 離線示範模式：存在 localStorage，僅供介面測試，不會真的寫入 Google 試算表
@@ -923,12 +1006,8 @@ async function apiPost(action, data){
     }
     return { ok:true };
   }
-  const res = await fetch(CONFIG.API_URL, {
-    method:'POST',
-    headers:{ 'Content-Type':'text/plain;charset=utf-8' },
-    body: JSON.stringify({ action, data })
-  });
-  return res.json();
+  const res = await apiPostLive(action, data);
+  return res;
 }
 
 function computeTotals(rec){
